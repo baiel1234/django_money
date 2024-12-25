@@ -1,7 +1,7 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import User, Currency, Transaction
-from .serializers import UserSerializer, CurrencySerializer, TransactionSerializer
+from .models import User, Currency, Transaction,Report
+from .serializers import UserSerializer, CurrencySerializer, TransactionSerializer,ReportSerializer
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
 import json
@@ -10,6 +10,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.serializers import ModelSerializer
 from rest_framework.viewsets import ReadOnlyModelViewSet
 from rest_framework.permissions import IsAuthenticated
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 @api_view(['POST'])
 def add_user(request):
@@ -95,3 +97,21 @@ class CurrencyViewSet(ReadOnlyModelViewSet):
 class TransactionViewSet(ReadOnlyModelViewSet):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
+
+@receiver(post_save, sender=Transaction)
+def update_report(sender, instance, **kwargs):
+    currency = instance.currency
+    report, created = Report.objects.get_or_create(currency=currency)
+
+    if instance.type == 'buy':  # Покупка
+        report.total_bought += instance.quantity
+        report.total_spent_on_buy += instance.total
+    elif instance.type == 'sell':  # Продажа
+        report.total_sold += instance.quantity
+        report.total_earned_on_sell += instance.total
+
+    report.update_net_profit()
+
+class ReportViewSet(ReadOnlyModelViewSet):
+    queryset = Report.objects.all()
+    serializer_class = ReportSerializer

@@ -57,3 +57,15 @@ class Transaction(models.Model):
         self.currency.save()  # Сохраняем обновления валюты
         som_currency.save()   # Сохраняем изменения для Som
         super().save(*args, **kwargs)  # Сохраняем транзакцию
+
+class Report(models.Model):
+    currency = models.OneToOneField('Currency', on_delete=models.CASCADE, related_name='report')
+    total_bought = models.DecimalField(max_digits=15, decimal_places=2, default=0)  # Сколько купили валюты
+    total_spent_on_buy = models.DecimalField(max_digits=15, decimal_places=2, default=0)  # Потратили сом на покупку
+    total_sold = models.DecimalField(max_digits=15, decimal_places=2, default=0)  # Сколько продали валюты
+    total_earned_on_sell = models.DecimalField(max_digits=15, decimal_places=2, default=0)  # Получили сом за продажу
+    net_profit = models.DecimalField(max_digits=15, decimal_places=2, default=0)  # Разница в сомах (расходы - доходы)
+
+    def update_net_profit(self):
+        self.net_profit = (self.total_earned_on_sell - self.total_spent_on_buy)
+        self.save()

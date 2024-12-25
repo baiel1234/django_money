@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from .models import Currency, Transaction
 from django.contrib.auth.models import User
+from rest_framework.serializers import ModelSerializer
+from .models import Report
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -17,3 +19,8 @@ class TransactionSerializer(serializers.ModelSerializer):
         model = Transaction
         fields = ['id', 'type', 'currency', 'quantity', 'rate', 'total', 'timestamp']
         read_only_fields = ['total']
+
+class ReportSerializer(ModelSerializer):
+    class Meta:
+        model = Report
+        fields = ['currency', 'total_bought', 'total_spent_on_buy', 'total_sold', 'total_earned_on_sell', 'net_profit']
