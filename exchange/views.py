@@ -5,6 +5,11 @@ from .serializers import UserSerializer, CurrencySerializer, TransactionSerializ
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
 import json
+from rest_framework import generics
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.serializers import ModelSerializer
+from rest_framework.viewsets import ReadOnlyModelViewSet
+from rest_framework.permissions import IsAuthenticated
 
 @api_view(['POST'])
 def add_user(request):
@@ -63,3 +68,30 @@ def user_login(request):
 def user_logout(request):
     logout(request)
     return JsonResponse({'message': 'Logout successful'})
+
+class TransactionListView(generics.ListAPIView):
+    queryset = Transaction.objects.all()
+    serializer_class = TransactionSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['currency']  # Фильтрация по валюте
+
+# Serializer for User
+class UserSerializer(ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username']
+
+# ViewSet for User
+class UserViewSet(ReadOnlyModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+# ViewSet for Currency
+class CurrencyViewSet(ReadOnlyModelViewSet):
+    queryset = Currency.objects.all()
+    serializer_class = CurrencySerializer
+
+# ViewSet for Transaction
+class TransactionViewSet(ReadOnlyModelViewSet):
+    queryset = Transaction.objects.all()
+    serializer_class = TransactionSerializer

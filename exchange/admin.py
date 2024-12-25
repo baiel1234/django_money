@@ -22,3 +22,8 @@ class TransactionAdmin(admin.ModelAdmin):
         if db_field.name == "currency":
             kwargs["queryset"] = Currency.objects.excluding_som()
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        # Можно добавить пользовательскую логику фильтрации здесь
+        return queryset
