@@ -1,17 +1,21 @@
+from rest_framework import generics,viewsets, status
+from rest_framework.serializers import ModelSerializer
+from rest_framework.viewsets import ReadOnlyModelViewSet,GenericViewSet
+from rest_framework.permissions import AllowAny,IsAuthenticated
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.authtoken.models import Token
+from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin,UpdateModelMixin 
 from .models import User, Currency, Transaction,Report
 from .serializers import UserSerializer, CurrencySerializer, TransactionSerializer,ReportSerializer
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
-import json
-from rest_framework import generics
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.serializers import ModelSerializer
-from rest_framework.viewsets import ReadOnlyModelViewSet
-from rest_framework.permissions import IsAuthenticated
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django_filters.rest_framework import DjangoFilterBackend
+import json
+
 
 @api_view(['POST'])
 def add_user(request):
@@ -29,43 +33,59 @@ def add_currency(request):
         return Response({"message": "Currency added successfully!"})
     return Response(serializer.errors)
 
-@api_view(['POST'])
-def add_transaction(request):
-    serializer = TransactionSerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response({"message": "Transaction added successfully!"})
-    return Response(serializer.errors)
+@api_view(['GET'])
+def filter_transactions(request):
+    # Получаем параметры из запроса
+    currency_id = request.GET.get('currency')  # ID валюты
+    transaction_type = request.GET.get('type')  # 'buy' или 'sell'
 
-@api_view(['POST'])
-def user_login(request):
-    if request.method == 'POST':
+    # Базовый queryset
+    transactions = Transaction.objects.all()
+
+    # Фильтрация по валюте
+    if currency_id:
         try:
-            data = json.loads(request.body)  # Загружаем JSON-данные
-            username = data.get('username')
-            password = data.get('password')
-
-            if not username or not password:
-                return JsonResponse({"error": "Username and password are required"}, status=400)
-
-            user = authenticate(request, username=username, password=password)
-
-            if user is not None:
-                if user.is_active:  # Проверяем, что пользователь активен
-                    login(request, user)
-                    return JsonResponse({"message": "Login successful"})
-                else:
-                    return JsonResponse({"error": "Account is disabled"}, status=403)
-            else:
-                return JsonResponse({"error": "Invalid username or password"}, status=400)
-
-        except json.JSONDecodeError:  # Обработка ошибки JSON
-            return JsonResponse({"error": "Invalid JSON format"}, status=400)
-
+            transactions = transactions.filter(currency_id=currency_id)
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-    else:
-        return JsonResponse({"error": "Invalid request method"}, status=405)
+            return Response({"error": f"Invalid currency filter: {str(e)}"}, status=400)
+
+    # Фильтрация по типу транзакции
+    if transaction_type:
+        if transaction_type in ['buy', 'sell']:
+            transactions = transactions.filter(type=transaction_type)
+        else:
+            return Response({"error": "Invalid transaction type"}, status=400)
+
+    # Сериализация результатов
+    serializer = TransactionSerializer(transactions, many=True)
+    return Response(serializer.data)
+
+@api_view(['DELETE'])
+def delete_all_transactions(request):
+    """
+    Удаление всех транзакций из базы данных.
+    """
+    try:
+        # Удаляем все записи из модели Transaction
+        Transaction.objects.all().delete()
+        return Response({"message": "All transactions have been deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        user = authenticate(username=username, password=password)
+
+        if user is not None:
+            token, created = Token.objects.get_or_create(user=user)
+            return Response({"token": token.key})
+        else:
+            return Response({"error": "Invalid credentials"}, status=400)
 
 def user_logout(request):
     logout(request)
@@ -94,9 +114,47 @@ class CurrencyViewSet(ReadOnlyModelViewSet):
     serializer_class = CurrencySerializer
 
 # ViewSet for Transaction
-class TransactionViewSet(ReadOnlyModelViewSet):
+class TransactionViewSet(UpdateModelMixin ,CreateModelMixin, ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
+
+    def create(self, request, *args, **kwargs):
+        # Получаем данные из запроса
+        data = request.data
+
+        # Исключаем валюту "Som"
+        try:
+            currency = Currency.objects.get(pk=data['currency'])
+            if currency.name == "Som":
+                return Response({"error": "Cannot create transactions with 'Som' currency"}, status=status.HTTP_400_BAD_REQUEST)
+        except Currency.DoesNotExist:
+            return Response({"error": "Currency not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Валидация и сохранение
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    # PUT/PATCH: Обновление транзакции
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
+
+    # DELETE: Удаление транзакции
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({"message": "Transaction deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+
+    def perform_destroy(self, instance):
+        # Реализация удаления объекта
+        instance.delete()
 
 @receiver(post_save, sender=Transaction)
 def update_report(sender, instance, **kwargs):
