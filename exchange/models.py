@@ -1,10 +1,16 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.timezone import now
+from django.contrib.auth.hashers import make_password
 
 class User(models.Model):
     username = models.CharField(max_length=150, unique=True)
     password = models.CharField(max_length=150)
+
+    def save(self, *args, **kwargs):
+        if not self.password.startswith('pbkdf2_'):  # Проверка, чтобы не хешировать уже хешированные пароли
+            self.password = make_password(self.password)
+        super().save(*args, **kwargs)
 
 class CurrencyManager(models.Manager):
     def excluding_som(self):
