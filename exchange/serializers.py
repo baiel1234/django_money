@@ -12,7 +12,7 @@ class UserSerializer(serializers.ModelSerializer):
 class CurrencySerializer(serializers.ModelSerializer):
     class Meta:
         model = Currency
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'quantity']
 
     def validate_name(self, value):
         if Currency.objects.filter(name=value).exists():
