@@ -180,5 +180,3 @@ def update_report(sender, instance, **kwargs):
 class ReportViewSet(ReadOnlyModelViewSet):
     queryset = Report.objects.all()
     serializer_class = ReportSerializer
-
-u
