@@ -14,6 +14,11 @@ class CurrencySerializer(serializers.ModelSerializer):
         model = Currency
         fields = ['id', 'name']
 
+    def validate_name(self, value):
+        if Currency.objects.filter(name=value).exists():
+            raise serializers.ValidationError("Currency with this name already exists.")
+        return value
+
 class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction

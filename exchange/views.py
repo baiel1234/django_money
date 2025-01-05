@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
-from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin,UpdateModelMixin 
+from rest_framework.mixins import DestroyModelMixin,CreateModelMixin, ListModelMixin, RetrieveModelMixin,UpdateModelMixin 
 from .models import User, Currency, Transaction,Report
 from .serializers import UserSerializer, CurrencySerializer, TransactionSerializer,ReportSerializer
 from django.contrib.auth import authenticate, login, logout
@@ -116,7 +116,7 @@ class UserViewSet(ReadOnlyModelViewSet):
     serializer_class = UserSerializer
 
 # ViewSet for Currency
-class CurrencyViewSet(ReadOnlyModelViewSet):
+class CurrencyViewSet(DestroyModelMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Currency.objects.all()
     serializer_class = CurrencySerializer
 
